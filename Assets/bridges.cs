@@ -612,7 +612,7 @@ public class bridges : MonoBehaviour {
 
             String error = Island.playerConnect(currentlySelected, clicked);
 
-            if (error == null) {
+            if (error.Equals("")) {
                 currentlySelected = null;
                 drawEdges();
                 checkSolution();
@@ -736,7 +736,7 @@ class Island {
     }
 
     public void addNeededConnection() {
-        Debug.Log("Added needed connection to the island at " + this.x + " " + this.y);
+        //Debug.Log("Added needed connection to the island at " + this.x + " " + this.y);
         this.neededConnections++;
     }
 
@@ -935,7 +935,7 @@ class Island {
                 is2.subtractTwoCurrentConnections();
             }
 
-            return null;
+            return "";
 
         } else if (y1 == y2) {
             for (int x = (x1 < x2 ? x1 : x2) + 1; x < (x1 > x2 ? x1 : x2); x++) {
@@ -979,10 +979,10 @@ class Island {
                 is2.subtractTwoCurrentConnections();
             }
 
-            return null;
+            return "";
         }
 
-        return null;
+        return "";
     }
 }
 
