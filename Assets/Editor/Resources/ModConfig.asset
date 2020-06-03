@@ -14,7 +14,15 @@ MonoBehaviour:
   id: bridges
   title: Bridges
   author: AAces
-  description: Solve a Hashi puzzle!
+  description: 'Solve a Hashi puzzle!
+
+
+    Manual link (HTML): Coming soon
+
+    Manual link (PDF): Coming soon
+
+
+    Made by: AAces'
   version: 0.1
   outputFolder: build
-  previewImage: {fileID: 0}
+  previewImage: {fileID: 2800000, guid: ded14c62945eab74eb98a71d74009fa4, type: 3}
