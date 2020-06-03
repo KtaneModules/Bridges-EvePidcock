@@ -608,33 +608,29 @@ public class bridges : MonoBehaviour {
                     }
                 }
                 return;
-            }
-
-            String error = Island.playerConnect(currentlySelected, clicked);
-
-            if (error.Equals("")) {
-                currentlySelected = null;
-                drawEdges();
-                checkSolution();
             } else {
-                module.HandleStrike();
-                currentlySelected = null;
-                foreach (Island i in Island.getIslandList())
-                {
-                    if (i.getCurrentConnections() == i.getNeededConnections())
-                    {
-                        islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
+
+                String error = Island.playerConnect(currentlySelected, clicked);
+
+                if (error.Equals("")) {
+                    currentlySelected = null;
+                    drawEdges();
+                    checkSolution();
+                } else {
+                    module.HandleStrike();
+                    currentlySelected = null;
+                    foreach (Island i in Island.getIslandList()) {
+                        if (i.getCurrentConnections() == i.getNeededConnections()) {
+                            islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
+                        } else if (i.getCurrentConnections() > i.getNeededConnections()) {
+                            islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
+                        } else {
+                            islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
+                        }
                     }
-                    else if (i.getCurrentConnections() > i.getNeededConnections())
-                    {
-                        islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
-                    }
-                    else
-                    {
-                        islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
-                    }
+
+                    Debug.LogFormat("[Bridges #{0}] Strike! {1}", _moduleId, error);
                 }
-                Debug.LogFormat("[Bridges #{0}] Strike! {1}", _moduleId, error);
             }
         }
     }
