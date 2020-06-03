@@ -1,11 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
 using UnityEngine;
-using KModkit;
-using UnityEditor.AI;
 using Random = UnityEngine.Random;
 
 public class bridges : MonoBehaviour {
@@ -615,7 +610,13 @@ public class bridges : MonoBehaviour {
                 return;
             }
 
-            if (!Island.playerConnect(currentlySelected, clicked)) {
+            String error = Island.playerConnect(currentlySelected, clicked);
+
+            if (error == null) {
+                currentlySelected = null;
+                drawEdges();
+                checkSolution();
+            } else {
                 module.HandleStrike();
                 currentlySelected = null;
                 foreach (Island i in Island.getIslandList())
@@ -633,14 +634,9 @@ public class bridges : MonoBehaviour {
                         islandList[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
                     }
                 }
-            } else {
-                currentlySelected = null;
-                drawEdges();
-                checkSolution();
+                Debug.LogFormat("[Bridges #{0}] Strike! {1}", _moduleId, error);
             }
         }
-
-
     }
 
     void drawEdges() {
@@ -740,6 +736,7 @@ class Island {
     }
 
     public void addNeededConnection() {
+        Debug.Log("Added needed connection to the island at " + this.x + " " + this.y);
         this.neededConnections++;
     }
 
@@ -886,22 +883,32 @@ class Island {
 
     }
 
-    public static bool playerConnect(Island is1, Island is2) { //true=strike
+    public static String playerConnect(Island is1, Island is2) { //true=strike
         int x1 = is1.getX();
         int x2 = is2.getX();
         int y1 = is1.getY();
         int y2 = is2.getY();
 
         if (!(x1==x2 || y1==y2)) {
-            return true;
+            return "You can not connect these two islands, they do not share an x or y coordinate!";
         }
 
         if (x1 == x2)
         {
             for (int y = (y1 < y2 ? y1 : y2) + 1; y < (y1 > y2 ? y1 : y2); y++)
             {
-                if (getIslandFromGrid(x1, y) != null || (getInputtedEdge(x1, y) == Edge.Horizontal || getInputtedEdge(x1, y) == Edge.DoubleHorizontal)) {
-                    return true;
+                if (getIslandFromGrid(x1, y) != null) {
+                    return "You can not connect these two islands, there is an island in the way at " + x1 + ", " + y + "!";
+                }
+
+                if (getInputtedEdge(x1, y) == Edge.Horizontal)
+                {
+                    return "You can not connect these two islands, you already have a bridge at " + x1 + ", " + y + "!";
+                }
+
+                if (getInputtedEdge(x1, y) == Edge.DoubleHorizontal)
+                {
+                    return "You can not connect these two islands, you already have a double bridge at " + x1 + ", " + y + "!";
                 }
             }
            
@@ -928,12 +935,23 @@ class Island {
                 is2.subtractTwoCurrentConnections();
             }
 
-            return false;
+            return null;
 
         } else if (y1 == y2) {
             for (int x = (x1 < x2 ? x1 : x2) + 1; x < (x1 > x2 ? x1 : x2); x++) {
-                if (getIslandFromGrid(x, y1) != null || (getInputtedEdge(x, y1) == Edge.Vertical || getInputtedEdge(x, y1) == Edge.DoubleVertical)) {
-                    return true;
+                if (getIslandFromGrid(x, y1) != null)
+                {
+                    return "You can not connect these two islands, there is an island in the way at " + x + ", " + y1 + "!";
+                }
+
+                if (getInputtedEdge(x, y1) == Edge.Vertical)
+                {
+                    return "You can not connect these two islands, you already have a bridge at " + x + ", " + y1 + "!";
+                }
+
+                if (getInputtedEdge(x, y1) == Edge.DoubleVertical)
+                {
+                    return "You can not connect these two islands, you already have a double bridge at " + x + ", " + y1 + "!";
                 }
             }
             if (getInputtedEdge((x1 < x2 ? x1 : x2) + 1, y1) == Edge.None)
@@ -961,10 +979,10 @@ class Island {
                 is2.subtractTwoCurrentConnections();
             }
 
-            return false;
+            return null;
         }
 
-        return false;
+        return null;
     }
 }
 
