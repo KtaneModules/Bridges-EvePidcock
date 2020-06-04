@@ -14,7 +14,7 @@ MonoBehaviour:
   id: bridges
   title: Bridges
   author: AAces
-  description: "Solve a Hashi puzzle!\r\n\nThe Camera Zoom mod is suggested.\n\r\nManual
+  description: "Solve a Hashi puzzle!\r\n\nThe Camera Zoom mod is recommended.\n\r\nManual
     link (HTML): Coming soon\r\nManual link (PDF): Coming soon\r\n\r\nSource Code:
     https://github.com/AAces/Bridges\r\n\r\nMade by: AAces\r\n"
   version: 0.1

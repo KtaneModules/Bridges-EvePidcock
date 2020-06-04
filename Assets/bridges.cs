@@ -108,11 +108,12 @@ public class bridges : MonoBehaviour {
     void Start () {
         _moduleId = _moduleIdCounter++;
         module.OnActivate += Activate;
+        Init();
     }
 
     void Activate()
     {
-        Init();
+        
         _lightsOn = true;
     }
 
