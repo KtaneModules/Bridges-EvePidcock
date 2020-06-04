@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -8,6 +9,8 @@ public class bridges : MonoBehaviour {
     public KMBombInfo Bomb;
     public KMBombModule module;
     public KMAudio Audio;
+
+    public GameObject allIslands, allBridges;
 
     public GameObject[] islandsX0, islandsX1, islandsX2, islandsX3, islandsX4, islandsX5, islandsX6;
     public GameObject[][] islandListObj;
@@ -182,6 +185,8 @@ public class bridges : MonoBehaviour {
         Debug.LogFormat("[Bridges #{0}] Initiating double bridge generation.", _moduleId);
         addDoubleBridges();
         displayIslands();
+        allBridges.SetActive(true);
+        allIslands.SetActive(true);
     }
 
     void setupIslands() {
@@ -362,12 +367,12 @@ public class bridges : MonoBehaviour {
                     break;
             }
         }
-        Debug.LogFormat("[Bridges #{0}] Completed island placement after {1} iterations (Capped at about {2}).", _moduleId, iterations, cap + 1);
+        Debug.LogFormat("[Bridges #{0}] Completed island placement. Placed {1} islands after {2} iterations (Capped at about {3}).", _moduleId, getIslandList().Count, iterations, cap + 1);
     }
 
     void addExtraBridges() {
         int extraBridges = 0;
-        for (int i = 0; i < 30; i++)
+        for (int i = 0; i < 50; i++)
         {
             Island first = getRandomIslandFromList();
             Island second;
@@ -474,7 +479,7 @@ public class bridges : MonoBehaviour {
 
     void addDoubleBridges() {
         int doubleBridges = 0;
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 15; i++) {
             Island first = getRandomIslandFromList();
             Island second;
             int x = first.getX();
@@ -713,9 +718,232 @@ public class bridges : MonoBehaviour {
         }
 
         if (solved) {
+            solved = checkIfSingleGroup();
+        }
+
+        if (solved) {
             module.HandlePass();
             moduleSolved = true;
-            Debug.LogFormat("[Calendar #{0}] Module Solved!", _moduleId);
+            Debug.LogFormat("[Bridges #{0}] Module Solved!", _moduleId);
+        } 
+    }
+
+    private int finalCounter = 0;
+
+    bool checkIfSingleGroup() {
+        Island i = getRandomIslandFromList();
+        i.mark();
+        finalCounter = 0;
+        checkDirection(0, i);
+        checkDirection(1, i);
+        checkDirection(2, i);
+        checkDirection(3, i);
+        if (finalCounter != getIslandList().Count - 1) {
+            Debug.LogFormat("[Bridges #{0}] Solution not valid, not all islands are connected. Island at ({1}, {2}) can only reach {3} out of the {4} other islands.", _moduleId, i.getX(), i.getY(), finalCounter, getIslandList().Count - 1);
+            Debug.LogFormat("[Bridges #{0}] Single island check took {1} iterations.", _moduleId, debugCounter);
+            StartCoroutine(warningFlash());
+            foreach (Island h in getIslandList()) {
+                h.unMark();
+            }
+            return false;
+        }
+        Debug.LogFormat("[Bridges #{0}] Island at ({1}, {2}) reached {3}/{4} other islands.", _moduleId, i.getX(), i.getY(), finalCounter, getIslandList().Count - 1);
+        Debug.LogFormat("[Bridges #{0}] Single island check took {1} iterations.", _moduleId, debugCounter);
+        return true;
+    }
+
+    private int debugCounter = 0;
+    void checkDirection(int dir, Island i) {
+        debugCounter++;
+        
+        int x = i.getX();
+        int y = i.getY();
+        switch (dir) {
+            case 0:
+                if (y <= 1) return;
+                if (getInputtedEdge(x, y - 1) == Edge.Vertical || getInputtedEdge(x, y - 1) == Edge.DoubleVertical) {
+                    do
+                    {
+                        y--;
+                    } while (getInputtedEdge(x, y) == Edge.Vertical || getInputtedEdge(x, y) == Edge.DoubleVertical);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked()) {
+                        return;
+                    }
+                    g.mark();
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    finalCounter++;
+                    checkDirection(0, g);
+                    checkDirection(1, g);
+                    checkDirection(3, g);
+                    return;
+                } else {
+                    return;
+                }
+            case 1:
+                if (x >= 5) return;
+                if (getInputtedEdge(x + 1, y) == Edge.Horizontal || getInputtedEdge(x + 1, y) == Edge.DoubleHorizontal)
+                {
+                    do
+                    {
+                        x++;
+                    } while (getInputtedEdge(x, y) == Edge.Horizontal || getInputtedEdge(x, y) == Edge.DoubleHorizontal);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    finalCounter++;
+                    checkDirection(0, g);
+                    checkDirection(1, g);
+                    checkDirection(2, g);
+                    return;
+                } else {
+                    return;
+                }
+            case 2:
+                if (y >= 7) return;
+                if (getInputtedEdge(x, y + 1) == Edge.Vertical || getInputtedEdge(x, y + 1) == Edge.DoubleVertical)
+                {
+                    do
+                    {
+                        y++;
+                    } while (getInputtedEdge(x, y) == Edge.Vertical || getInputtedEdge(x, y) == Edge.DoubleVertical);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    finalCounter++;
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    checkDirection(1, g);
+                    checkDirection(2, g);
+                    checkDirection(3, g);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+            case 3:
+                if (x <= 1) return;
+                if (getInputtedEdge(x - 1, y) == Edge.Horizontal || getInputtedEdge(x - 1, y) == Edge.DoubleHorizontal)
+                {
+                    do
+                    {
+                        x--;
+                    } while (getInputtedEdge(x, y) == Edge.Horizontal || getInputtedEdge(x, y) == Edge.DoubleHorizontal);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    finalCounter++;
+                    checkDirection(0, g);
+                    checkDirection(2, g);
+                    checkDirection(3, g);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+        }
+    }
+
+    private IEnumerator warningFlash() {
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in getIslandList()) {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = selectedMat;
+        }
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in getIslandList())
+        {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
+        }
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in getIslandList())
+        {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = selectedMat;
+        }
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in getIslandList())
+        {
+            if (i.getCurrentConnections() == i.getNeededConnections())
+            {
+                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
+            }
+            else if (i.getCurrentConnections() > i.getNeededConnections())
+            {
+                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
+            }
+            else
+            {
+                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
+            }
+        }
+
+    }
+
+    private IEnumerator islandFlash(int x, int y) {
+        yield return new WaitForSeconds(0.1f);
+        islandListObj[x][y].GetComponent<MeshRenderer>().material = overMat;
+        yield return new WaitForSeconds(0.25f);
+        islandListObj[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+        yield return new WaitForSeconds(0.25f);
+        islandListObj[x][y].GetComponent<MeshRenderer>().material = overMat;
+        yield return new WaitForSeconds(0.25f);
+        islandListObj[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+    }
+
+    private IEnumerator edgeFlash(int x, int y) {
+        yield return new WaitForSeconds(0.1f);
+        switch (getInputtedEdge(x, y)) {
+            case Edge.Horizontal:
+                horizontalSingles[y][x].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                horizontalSingles[y][x].GetComponent<MeshRenderer>().material = unsolvedMat;
+                yield return new WaitForSeconds(0.25f);
+                horizontalSingles[y][x].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                horizontalSingles[y][x].GetComponent<MeshRenderer>().material = unsolvedMat;
+                break;
+            case Edge.DoubleHorizontal:
+                horizontalDoubles[y][x].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                horizontalDoubles[y][x].GetComponent<MeshRenderer>().material = unsolvedMat;
+                yield return new WaitForSeconds(0.25f);
+                horizontalDoubles[y][x].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                horizontalDoubles[y][x].GetComponent<MeshRenderer>().material = unsolvedMat;
+                break;
+            case Edge.Vertical:
+                verticalSingles[x][y].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                verticalSingles[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+                yield return new WaitForSeconds(0.25f);
+                verticalSingles[x][y].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                verticalSingles[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+                break;
+            case Edge.DoubleVertical:
+                verticalDoubles[x][y].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                verticalDoubles[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+                yield return new WaitForSeconds(0.25f);
+                verticalDoubles[x][y].GetComponent<MeshRenderer>().material = overMat;
+                yield return new WaitForSeconds(0.25f);
+                verticalDoubles[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+                break;
         }
     }
 
@@ -868,6 +1096,7 @@ public class bridges : MonoBehaviour {
 
         if (!(x1 == x2 || y1 == y2))
         {
+            StartCoroutine(islandFlash(x2, y2));
             return "You can not connect these two islands, they do not share an x or y coordinate!";
         }
 
@@ -875,18 +1104,20 @@ public class bridges : MonoBehaviour {
         {
             for (int y = (y1 < y2 ? y1 : y2) + 1; y < (y1 > y2 ? y1 : y2); y++)
             {
-                if (getIslandFromGrid(x1, y) != null)
-                {
+                if (getIslandFromGrid(x1, y) != null) {
+                    StartCoroutine(islandFlash(x1, y));
                     return "You can not connect these two islands, there is an island in the way at " + x1 + ", " + y + "!";
                 }
 
                 if (getInputtedEdge(x1, y) == Edge.Horizontal)
                 {
+                    StartCoroutine(edgeFlash(x1, y));
                     return "You can not connect these two islands, you already have a bridge at " + x1 + ", " + y + "!";
                 }
 
                 if (getInputtedEdge(x1, y) == Edge.DoubleHorizontal)
                 {
+                    StartCoroutine(edgeFlash(x1, y));
                     return "You can not connect these two islands, you already have a double bridge at " + x1 + ", " + y + "!";
                 }
             }
@@ -928,16 +1159,19 @@ public class bridges : MonoBehaviour {
             {
                 if (getIslandFromGrid(x, y1) != null)
                 {
+                    StartCoroutine(islandFlash(x, y1));
                     return "You can not connect these two islands, there is an island in the way at " + x + ", " + y1 + "!";
                 }
 
                 if (getInputtedEdge(x, y1) == Edge.Vertical)
                 {
+                    StartCoroutine(edgeFlash(x, y1));
                     return "You can not connect these two islands, you already have a bridge at " + x + ", " + y1 + "!";
                 }
 
                 if (getInputtedEdge(x, y1) == Edge.DoubleVertical)
                 {
+                    StartCoroutine(edgeFlash(x, y1));
                     return "You can not connect these two islands, you already have a double bridge at " + x + ", " + y1 + "!";
                 }
             }
@@ -981,12 +1215,26 @@ public class bridges : MonoBehaviour {
 
 class Island {
     private int x, y, neededConnections, currentConnections;
+    private bool marked;
 
     public Island(int x, int y) {
         this.x = x;
         this.y = y;
         this.neededConnections = 0;
         this.currentConnections = 0;
+        this.marked = false;
+    }
+
+    public void mark() {
+        this.marked = true;
+    }
+
+    public void unMark() {
+        this.marked = false;
+    }
+
+    public bool isMarked() {
+        return this.marked;
     }
 
     public int getX() {
@@ -1016,9 +1264,7 @@ class Island {
 
     public void subtractTwoCurrentConnections() {
         this.currentConnections-=2;
-    }
-
-    
+    }   
 }
 
 enum Edge {

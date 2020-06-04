@@ -2828,7 +2828,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!1 &1249931266928932
 GameObject:
   m_ObjectHideFlags: 1
@@ -4425,7 +4425,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!1 &1395081951658500
 GameObject:
   m_ObjectHideFlags: 1
@@ -48152,6 +48152,8 @@ MonoBehaviour:
   Bomb: {fileID: 114250140366529768}
   module: {fileID: 114374955310190938}
   Audio: {fileID: 114987177163894874}
+  allIslands: {fileID: 1392377671777120}
+  allBridges: {fileID: 1249138343722376}
   islandsX0:
   - {fileID: 1307073877383142}
   - {fileID: 1348282926053234}
