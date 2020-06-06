@@ -28,8 +28,7 @@ public class bridges : MonoBehaviour {
     public GameObject[][] horizontalDoubles;
 
     private Island[,] islandGrid;
-    private Edge[,] correctEdgeGrid;
-    private Edge[,] inputtedEdgeGrid;
+    private Edge[,] inputtedEdgeGrid, solutionEdgeGrid, correctEdgeGrid;
     private List<Island> islandList;
 
     public KMSelectable[] selX0, selX1, selX2, selX3, selX4, selX5, selX6;
@@ -177,26 +176,913 @@ public class bridges : MonoBehaviour {
                 g.SetActive(false);
             }
         }
-        Debug.LogFormat("[Bridges #{0}] Initiating puzzle generation.", _moduleId);
-        IslandsInit();
-        drawEdges();
-        setupIslands();
-        Debug.LogFormat("[Bridges #{0}] Initiating extra bridge generation.", _moduleId);
-        addExtraBridges();
-        Debug.LogFormat("[Bridges #{0}] Initiating double bridge generation.", _moduleId);
-        addDoubleBridges();
+        generatePuzzle(true);
         displayIslands();
         allBridges.SetActive(true);
         allIslands.SetActive(true);
     }
+    int generationCount = 0;
+    void generatePuzzle(bool checkU) {
+        generationCount++;
+        Debug.LogFormat("[Bridges #{0}] Initiating puzzle generation #{1}.", _moduleId, generationCount);
+        Debug.LogFormat("[Bridges #{0}] Initiating island generation #{1}.", _moduleId, generationCount);
+        IslandsInit();
+        drawEdges();
+        setupIslands();
+        Debug.LogFormat("[Bridges #{0}] Initiating extra bridge generation #{1}.", _moduleId, generationCount);
+        addExtraBridges();
+        Debug.LogFormat("[Bridges #{0}] Initiating double bridge generation #{1}.", _moduleId, generationCount);
+        addDoubleBridges();
+        updateNeighbors();
+        if (checkU) {
+            Debug.LogFormat("[Bridges #{0}] Initiating uniqueness check #{1}.", _moduleId, generationCount);
+            checkUniqueness();
+        }
+    }
+
+    private int solutionAttemptCounter = 0, solutionTotalAttemptCounter = 0, regenerationCounter = 0;
+
+    void checkUniqueness() {
+        foreach (Island i in getIslandList()) {
+            i.resetSolutionAttempt();
+        }
+        solutionEdgeGrid = new[,]{
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+        };
+        for (int i = 0; i < 5; i++) {
+            //Debug.Log("Iteration " + (i+1));
+            foreach (Island island in getIslandList()) {
+                if (island.isSolved()) {
+                    //Debug.LogFormat("[Bridges #{0}] Island {1}, {2} solved, skipping.", _moduleId, island.getX(), island.getY());
+                    continue;
+                }
+
+                int remainingConnections = island.getNeededConnections() - island.getSolutionConnections();
+                //Debug.LogFormat("[Bridges #{0}] Island {1}, {2}: Needed Connections: {3}. Remaining Connections: {4}. Neighbors: {5}. Connected Neighbors: {6}.", _moduleId, island.getX(), island.getY(), island.getNeededConnections(), remainingConnections, island.getNeighbors().Count, island.getConnectedNeighbors().Count);
+
+                switch (island.getNeededConnections()) {
+                    case 1:
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 1) {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            break;
+                        }
+
+                        foreach (Island n in island.getNeighbors()) {
+                            if (n.getNeededConnections() == 1 || n.isSolved()) {
+                                n.addBannedNeighbor(island);
+                                island.addBannedNeighbor(n);
+                            }
+                        }
+
+                        break;
+                    case 2:
+                        foreach (Island n in island.getNeighbors())
+                        {
+                            if (n.isSolved())
+                            {
+                                n.addBannedNeighbor(island);
+                                island.addBannedNeighbor(n);
+                            }
+                        }
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 2)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            break;
+                        }
+
+                        /*if (island.getConnectedNeighbors().Count == 1 && island.getNeighbors().Count >= 1) { //This breaks it for some reason? But I kinda need it
+                            if (island.getConnectedNeighbors()[0].getNeededConnections() == 1) {
+                                    foreach (Island n in island.getNeighbors()) {
+                                        if (n.getNeededConnections() == 1) {
+                                            n.addBannedNeighbor(island);
+                                            island.addBannedNeighbor(n);
+                                        }
+                                    }
+                            }
+                        }*/
+
+                        if (island.getNeighbors().Count == 2 && island.getConnectedNeighbors().Count == 0) {
+                            if (island.getNeighbors()[0].getNeededConnections() == 2) {
+                                solutionCheckConnection(island, island.getNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                                break;
+                            } else if (island.getNeighbors()[1].getNeededConnections() == 2) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                break;
+                            }
+                        }
+
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 1) {
+                            if (island.getConnectedNeighbors().Count == 0) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                break;
+                            } else if (island.getConnectedNeighbors().Count == 1) {
+                                if (island.getConnectedNeighbors()[0].isSolved())
+                                {
+                                    solutionCheckConnection(island, island.getNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                    break;
+                                }
+                                else if (island.getNeighbors()[0].isSolved())
+                                {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+
+                                    break;
+                                }
+                            }
+
+                            break;
+                        }
+
+                        if (island.getConnectedNeighbors().Count == 1 && island.getNeighbors().Count == 0 && remainingConnections == 1) {
+                            solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+
+                            break;
+                        }
+
+                        
+                        break;
+                    case 3:
+                        foreach (Island n in island.getNeighbors())
+                        {
+                            if (n.isSolved())
+                            {
+                                n.addBannedNeighbor(island);
+                                island.addBannedNeighbor(n);
+                            }
+                        }
+                        if (island.getNeighbors().Count == 2 && remainingConnections == 3)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1 && island.getConnectedNeighbors().Count == 0 && remainingConnections == 2)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 1)
+                        {
+                            if (island.getConnectedNeighbors().Count == 1) {
+                                if (!island.getNeighbors()[0].isSolved()) {
+                                    solutionCheckConnection(island, island.getNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                    break;
+                                }
+                            }
+
+                            if (island.getConnectedNeighbors().Count == 2) {
+                                if (island.getConnectedNeighbors()[0].isSolved() && island.getConnectedNeighbors()[1].isSolved()) {
+                                    if (!island.getNeighbors()[0].isSolved())
+                                    {
+                                        solutionCheckConnection(island, island.getNeighbors()[0]);
+                                        //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 2 && island.getConnectedNeighbors().Count == 1)
+                        {
+
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                            break;
+                            
+                        }
+
+                        if (island.getNeighbors().Count == 0 && island.getConnectedNeighbors().Count == 2) {
+                            if(island.getConnectedNeighbors()[0].isSolved()) {
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+
+                                break;
+                            }
+                            if (island.getConnectedNeighbors()[1].isSolved()) {
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+
+                                break;
+                            }
+
+                        }
+
+                        if (island.getNeighbors().Count == 2 && island.getConnectedNeighbors().Count == 1 && remainingConnections == 1) {
+                            if (island.getNeighbors()[0].isSolved())
+                            {
+                                solutionCheckConnection(island, island.getNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+
+                                break;
+                            }
+                            if (island.getNeighbors()[1].isSolved())
+                            {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                break;
+                            }
+                        }
+                        break;
+                    case 4:
+                        foreach (Island n in island.getNeighbors())
+                        {
+                            if (n.isSolved())
+                            {
+                                n.addBannedNeighbor(island);
+                                island.addBannedNeighbor(n);
+                            }
+                        }
+                        if (island.getNeighbors().Count == 2 && remainingConnections == 4)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1 && island.getConnectedNeighbors().Count == 1) {
+                            if (remainingConnections == 3) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                break;
+                            } else if (remainingConnections == 2) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                break;
+                            }
+                        }
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 2 && island.getConnectedNeighbors().Count == 0)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1 && remainingConnections == 2 && island.getConnectedNeighbors().Count == 2)
+                        {
+                            if (island.getConnectedNeighbors()[0].isSolved() && island.getConnectedNeighbors()[1].isSolved()) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                                break;
+                            }
+                        }
+
+                        if (island.getNeighbors().Count == 2 && remainingConnections == 3 && island.getConnectedNeighbors().Count == 1) {
+                            if (island.getConnectedNeighbors()[0].isSolved()) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                solutionCheckConnection(island, island.getNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+
+                                break;
+                            }
+                        }
+
+                        if (island.getNeighbors().Count == 0 && island.getConnectedNeighbors().Count == 2) {
+                            int r = 0;
+                            while (island.getSolutionConnections() != 4)
+                            {
+                                r++;
+                                if (r >= 10)
+                                {
+                                    //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} took too long to connect, skipping.", _moduleId, island.getX(), island.getY());
+                                    break;
+                                }
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+
+                                if (island.getSolutionConnections() == 4) break;
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+
+                                if (island.getSolutionConnections() == 4) break;
+                            }
+
+                            break;
+                        }
+
+                        if (island.getNeighbors().Count == 1 && island.getConnectedNeighbors().Count == 2) {
+                            if (island.getConnectedNeighbors()[0].isSolved() && island.getConnectedNeighbors()[1].isSolved()) {
+                                solutionCheckConnection(island, island.getNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                                break;
+                            }
+
+                            if (island.getNeighbors()[0].isSolved()) {
+                                if (island.getConnectedNeighbors()[0].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+                                } else if (island.getConnectedNeighbors()[1].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+                                }
+                            }
+                        }
+
+                        if (island.getConnectedNeighbors().Count == 3) {
+                            List<Island> l = island.getConnectedNeighbors();
+                            if (l[0].isSolved() && l[1].isSolved())
+                            {
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[2]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[2].getX(), island.getConnectedNeighbors()[2].getY());
+                                break;
+                            }
+
+                            if (l[0].isSolved() && l[2].isSolved())
+                            {
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+                                break;
+                            }
+
+                            if (l[1].isSolved() && l[2].isSolved())
+                            {
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+                                break;
+                            }
+                        }
+
+                        break;
+                    case 5:
+                        foreach (Island n in island.getNeighbors())
+                        {
+                            if (n.isSolved())
+                            {
+                                n.addBannedNeighbor(island);
+                                island.addBannedNeighbor(n);
+                            }
+                        }
+                        if (island.getNeighbors().Count == 3 && remainingConnections == 5)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} connected to the islands at {3}, {4} and {5}, {6} and {7}, {8}.", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 2 && island.getConnectedNeighbors().Count == 1 && (remainingConnections == 4 || remainingConnections == 3))
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} connected to the islands at {3}, {4} and {5}, {6}.", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1 && island.getConnectedNeighbors().Count == 2 && (remainingConnections == 2 || remainingConnections == 3 || remainingConnections == 1))
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} connected to the island at {3}, {4}.", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            break;
+                        }
+
+                        if (island.getNeighbors().Count == 0 && island.getConnectedNeighbors().Count == 3) {
+                            List<Island> l = island.getConnectedNeighbors();
+                            if (remainingConnections == 1) {
+                                if (l[0].isSolved() && l[1].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[2]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[2].getX(), island.getConnectedNeighbors()[2].getY());
+                                    break;
+                                }
+
+                                if (l[0].isSolved() && l[2].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+                                    break;
+                                }
+
+                                if (l[1].isSolved() && l[2].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+                                    break;
+                                }
+                            } else if (remainingConnections == 2) {
+                                if (l[0].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[2]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[2].getX(), island.getConnectedNeighbors()[2].getY());
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+
+                                    break;
+                                }
+
+                                if (l[1].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[2]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[2].getX(), island.getConnectedNeighbors()[2].getY());
+
+                                    break;
+                                }
+
+                                if (l[2].isSolved()) {
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+                                    solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                    //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    case 6:
+                        foreach (Island n in island.getNeighbors())
+                        {
+                            if (n.isSolved())
+                            {
+                                n.addBannedNeighbor(island);
+                                island.addBannedNeighbor(n);
+                            }
+                        }
+                        if (island.getNeighbors().Count == 3 && remainingConnections == 6)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1 && island.getConnectedNeighbors().Count == 2)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 2 && island.getConnectedNeighbors().Count == 1)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+
+                            break;
+                        }
+
+                        if (island.getConnectedNeighbors().Count == 3 && island.getNeighbors().Count == 0) {
+                            int r = 0;
+                            while (island.getSolutionConnections() != 6) {
+                                r++;
+                                if (r >= 10)
+                                {
+                                    //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} took too long to connect, skipping.", _moduleId, island.getX(), island.getY());
+                                    break;
+                                }
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
+
+                                if (island.getSolutionConnections() == 6) break;
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[1]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[1].getX(), island.getConnectedNeighbors()[1].getY());
+
+                                if (island.getSolutionConnections() == 6) break;
+                                solutionCheckConnection(island, island.getConnectedNeighbors()[2]);
+                                //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[2].getX(), island.getConnectedNeighbors()[2].getY());
+
+                                if (island.getSolutionConnections() == 6) break;
+                            }
+                            break;
+                        }
+
+                        break;
+                    case 7:
+                        if (island.getNeighbors().Count == 4)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            solutionCheckConnection(island, island.getNeighbors()[3]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[3].getX(), island.getNeighbors()[3].getY());
+
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 3)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
+
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 2)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+
+                            break;
+                        }
+                        if (island.getNeighbors().Count == 1)
+                        {
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                            break;
+                        }
+                        break;
+                    case 8:
+                        int ro = 0;
+                        while (island.getSolutionConnections() != 8) {
+                            ro++;
+                            if (ro >= 16)
+                            {
+                                //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} took too long to connect, skipping.", _moduleId, island.getX(), island.getY());
+                                break;
+                            }
+                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
+
+                            if (island.getSolutionConnections() == 8) break;
+                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
+
+                            if (island.getSolutionConnections() == 8) break;
+                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
+
+                            if (island.getSolutionConnections() == 8) break;
+                            solutionCheckConnection(island, island.getNeighbors()[3]);
+                            //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[3].getX(), island.getNeighbors()[3].getY());
+
+                            if (island.getSolutionConnections() == 8) break;
+                        }
+                        break;
+                }
+                updateNeighbors();
+                //For Debug:
+                //drawSolutionEdges()
+            }
+
+
+        }
+
+        bool solved = true;
+        foreach (Island i in getIslandList()) {
+            if (i.getSolutionConnections() != i.getNeededConnections()) {
+                solved = false;
+                break;
+            }
+        }
+
+        bool cont = true;
+
+        if (solved) {
+            solved = checkSolutionIfSingleGroup();
+            cont = solved;
+        }
+
+        List<Island> unsolved = new List<Island>();
+
+        if (solved) {
+            Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, this puzzle should only have one solution. If you find that it doesn't, contact AAces#2652 on Discord with this log file (and maybe a screenshot of the module highlighting where multiple solutions arise if you can).", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+            //Puzzle is good
+        } else {
+            if (!cont) {
+                if (regenerationCounter < 3)
+                {
+                    solutionAttemptCounter = 0;
+                    regenerationCounter++;
+                    generatePuzzle(true);
+                }
+                else
+                {
+                    generatePuzzle(false);
+                    Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                }
+
+                return;
+            }
+            if (solutionAttemptCounter < 2) {
+                foreach (Island i in getIslandList()) {
+                    if (!i.isSolved() && i.getNeededConnections() != 1) {
+                        unsolved.Add(i);
+                    }
+                }
+                updateNeighbors();
+                if (unsolved.Count > 2) {
+                    Island a, b;
+                    int c = 0;
+                    do {
+                        c++;
+                        a = unsolved[Random.Range(0, unsolved.Count)];
+                        b = unsolved[Random.Range(0, unsolved.Count)];
+                    } while (!a.getConnectedNeighbors().Contains(b) && c<20);
+
+                    while(b == a) {
+                        b = unsolved[Random.Range(0, unsolved.Count)];
+                    }
+                    a.removeNeededConnection();
+                    b.removeNeededConnection();
+
+                    //Debug.LogFormat("Removed the/a connection between/from {0}, {1} and {2}, {3}.", a.getX(), a.getY(), b.getX(), b.getY());
+
+                    solutionAttemptCounter++;
+                    solutionTotalAttemptCounter++;
+                    checkUniqueness();
+                } else if (unsolved.Count == 2) {
+                    Island a=unsolved[0], b=unsolved[1];
+                    a.removeNeededConnection();
+                    b.removeNeededConnection();
+                    //Debug.LogFormat("Removed a connection from both {0}, {1} and {2}, {3}.", a.getX(), a.getY(), b.getX(), b.getY());
+
+                    solutionAttemptCounter++;
+                    solutionTotalAttemptCounter++;
+                    checkUniqueness();
+                } else if (unsolved.Count == 1) {
+                    unsolved[0].removeNeededConnection();
+                    //Debug.LogFormat("Removed a connection from both {0}, {1} and {2}, {3}.", unsolved[0].getX(), unsolved[0].getY());
+                    solutionAttemptCounter++;
+                    solutionTotalAttemptCounter++;
+                    checkUniqueness();
+                } else if(regenerationCounter < 3)
+                {
+                    solutionAttemptCounter = 0;
+                    regenerationCounter++;
+                    generatePuzzle(true);
+                } else {
+                    generatePuzzle(false);
+                    Debug.LogFormat("[Bridges #{0}] After {1} regenerations, couldn't guarantee a unique solution.", _moduleId, regenerationCounter);
+                }
+            } else if(regenerationCounter < 3) {
+                solutionAttemptCounter = 0;
+                regenerationCounter++;
+                generatePuzzle(true);
+            } else {
+                generatePuzzle(false);
+                Debug.LogFormat("[Bridges #{0}] After {1} regenerations, couldn't guarantee a unique solution.", _moduleId, regenerationCounter);
+            }
+        }
+    }
+
+    void updateNeighbors() {
+        foreach (Island i in getIslandList()) {
+            i.clearNeighborList();
+            i.clearConnectedNeighborList();
+        }
+        foreach (Island first in getIslandList()) {
+            Island second;
+            int x = first.getX();
+            int y = first.getY();
+            for (int i = 0; i < 4; i++) {
+                switch (i)
+                {
+                    case 0:
+                        if (first.getY() <= 1 || getSolutionEdge(x, y - 1) != Edge.None)
+                        {
+                            break;
+                        }
+
+                        int newY = y;
+                        do
+                        {
+                            newY--;
+                        } while (getSolutionEdge(x, newY) == Edge.None && getIslandFromGrid(x, newY) == null && newY != 0);
+
+                        second = getIslandFromGrid(x, newY);
+                        if (second == null)
+                        {
+                            break;
+                        }
+
+                        if(!areNeighbors(first, second) && !first.getBannedNeighbors().Contains(second)){addNeighbors(first, second);}
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, x, newY);
+
+                        break;
+                    case 1:
+                        if (first.getX() >= 5 || getSolutionEdge(x + 1, y) != Edge.None)
+                        {
+                            break;
+                        }
+
+                        int newX = x;
+                        do
+                        {
+                            newX++;
+                        } while (getSolutionEdge(newX, y) == Edge.None && getIslandFromGrid(newX, y) == null && newX != 6);
+
+                        second = getIslandFromGrid(newX, y);
+                        if (second == null)
+                        {
+                            break;
+                        }
+
+                        if (!areNeighbors(first, second) && !first.getBannedNeighbors().Contains(second)) { addNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, newX, y);
+
+                        break;
+                    case 2:
+                        if (first.getY() >= 7 || getSolutionEdge(x, y + 1) != Edge.None)
+                        {
+                            break;
+                        }
+
+                        int newY2 = y;
+                        do
+                        {
+                            newY2++;
+                        } while (getSolutionEdge(x, newY2) == Edge.None && getIslandFromGrid(x, newY2) == null && newY2 != 8);
+
+                        second = getIslandFromGrid(x, newY2);
+                        if (second == null)
+                        {
+                            break;
+                        }
+
+                        if (!areNeighbors(first, second) && !first.getBannedNeighbors().Contains(second)) { addNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, x, newY2);
+
+                        break;
+                    case 3:
+                        if (first.getX() <= 1 || getSolutionEdge(x - 1, y) != Edge.None)
+                        {
+                            break;
+                        }
+
+                        int newX2 = x;
+                        do
+                        {
+                            newX2--;
+                        } while (getSolutionEdge(newX2, y) == Edge.None && getIslandFromGrid(newX2, y) == null && newX2 != 0);
+
+                        second = getIslandFromGrid(newX2, y);
+                        if (second == null)
+                        {
+                            break;
+                        }
+                        if (!areNeighbors(first, second) && !first.getBannedNeighbors().Contains(second)) { addNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, newX2, y);
+
+                        break;
+                }
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        if (first.getY() <= 1 || (getSolutionEdge(x, y - 1) != Edge.Vertical && getSolutionEdge(x, y - 1) != Edge.DoubleVertical))
+                        {
+                            break;
+                        }
+
+                        int newY = y;
+                        do
+                        {
+                            newY--;
+                        } while (getIslandFromGrid(x, newY) == null && newY != 0);
+
+                        second = getIslandFromGrid(x, newY);
+                        if (second == null)
+                        {
+                            break;
+                        }
+
+                        if (!areConnectedNeighbors(first, second)) { addConnectedNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, x, newY);
+
+                        break;
+                    case 1:
+                        if (first.getX() >= 5 || (getSolutionEdge(x + 1, y) != Edge.Horizontal && getSolutionEdge(x + 1, y) != Edge.DoubleHorizontal))
+                        {
+                            break;
+                        }
+
+                        int newX = x;
+                        do
+                        {
+                            newX++;
+                        } while (getIslandFromGrid(newX, y) == null && newX != 6);
+
+                        second = getIslandFromGrid(newX, y);
+                        if (second == null)
+                        {
+                            break;
+                        }
+
+                        if (!areConnectedNeighbors(first, second)) { addConnectedNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, newX, y);
+
+                        break;
+                    case 2:
+                        if (first.getY() >= 7 || (getSolutionEdge(x, y + 1) != Edge.Vertical && getSolutionEdge(x, y + 1) != Edge.DoubleVertical))
+                        {
+                            break;
+                        }
+
+                        int newY2 = y;
+                        do
+                        {
+                            newY2++;
+                        } while (getIslandFromGrid(x, newY2) == null && newY2 != 8);
+
+                        second = getIslandFromGrid(x, newY2);
+                        if (second == null)
+                        {
+                            break;
+                        }
+
+                        if (!areConnectedNeighbors(first, second)) { addConnectedNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, x, newY2);
+
+                        break;
+                    case 3:
+                        if (first.getX() <= 1 || (getSolutionEdge(x - 1, y) != Edge.Horizontal && getSolutionEdge(x - 1, y) != Edge.DoubleHorizontal))
+                        {
+                            break;
+                        }
+
+                        int newX2 = x;
+                        do
+                        {
+                            newX2--;
+                        } while (getIslandFromGrid(newX2, y) == null && newX2 != 0);
+
+                        second = getIslandFromGrid(newX2, y);
+                        if (second == null)
+                        {
+                            break;
+                        }
+                        if (!areConnectedNeighbors(first, second)) { addConnectedNeighbors(first, second); }
+                        //Debug.LogFormat("[Bridges #{0}] Marked the islands at {1}, {2} and {3}, {4} as neighbors.", _moduleId, x, y, newX2, y);
+
+                        break;
+                }
+            }
+
+            //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} has {3} neighbor(s).", _moduleId, x, y, first.getNeighbors().Count);
+        }
+    }
 
     void setupIslands() {
         int cap = 325;
-        int iterations = 0;
-        Debug.LogFormat("[Bridges #{0}] Initiating island generation.", _moduleId);
+        int iterations = 0;       
         int x = Random.Range(0, 7);
         int y = Random.Range(0, 9);
-        Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, x, y);
+
         addIsland(new Island(x, y));
         for (int i = 0; getIslandList().Count < 16; i++) {
             iterations++;
@@ -235,7 +1121,7 @@ public class bridges : MonoBehaviour {
                                 }
 
                                 //Debug.LogFormat("Island would be placed with a y value between {0} and {1}", bottom1, top1 - 1);
-                                Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, starter.getX(), newY);
+                                //Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, starter.getX(), newY);
                                 addIsland(new Island(starter.getX(), newY));
                                 correctlyConnectIslands(starter, getIslandFromGrid(starter.getX(), newY));
                                 //Debug.LogFormat("[Bridges #{0}] Put a vertical connection between the island at {1}, {2} and {3}, {4}.", _moduleId, starter.getX(), starter.getY(), starter.getX(), newY);
@@ -272,7 +1158,7 @@ public class bridges : MonoBehaviour {
                                     continue;
                                 }
                                 //Debug.LogFormat("Island would be placed with an x value between {0} and {1}", bottom2, top2 - 1);
-                                Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, newX, starter.getY());
+                                //Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, newX, starter.getY());
                                 addIsland(new Island(newX, starter.getY()));
                                 correctlyConnectIslands(starter, getIslandFromGrid(newX, starter.getY()));
                                 //Debug.LogFormat("[Bridges #{0}] Put a horizontal connection between the island at {1}, {2} and {3}, {4}.", _moduleId, starter.getX(), starter.getY(), newX, starter.getY());
@@ -313,7 +1199,7 @@ public class bridges : MonoBehaviour {
                                 }
 
                                 //Debug.LogFormat("Island would be placed with a y value between {0} and {1}", bottom3, top3 - 1);
-                                Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, starter.getX(), newY);
+                                //Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, starter.getX(), newY);
                                 addIsland(new Island(starter.getX(), newY));
                                 correctlyConnectIslands(starter, getIslandFromGrid(starter.getX(), newY));
                                 //Debug.LogFormat("[Bridges #{0}] Put a vertical connection between the island at {1}, {2} and {3}, {4}.", _moduleId, starter.getX(), starter.getY(), starter.getX(), newY);
@@ -357,7 +1243,7 @@ public class bridges : MonoBehaviour {
                                     continue;
                                 }
                                 //Debug.LogFormat("Island would be placed with an x value between {0} and {1}", bottom4, top4 - 1);
-                                Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, newX, starter.getY());
+                                //Debug.LogFormat("[Bridges #{0}] Island placed at ({1}, {2}).", _moduleId, newX, starter.getY());
                                 addIsland(new Island(newX, starter.getY()));
                                 correctlyConnectIslands(starter, getIslandFromGrid(newX, starter.getY()));
                                 //Debug.LogFormat("[Bridges #{0}] Put a horizontal connection between the island at {1}, {2} and {3}, {4}.", _moduleId, starter.getX(), starter.getY(), newX, starter.getY());
@@ -369,6 +1255,13 @@ public class bridges : MonoBehaviour {
             }
         }
         Debug.LogFormat("[Bridges #{0}] Completed island placement. Placed {1} islands after {2} iterations (Capped at about {3}).", _moduleId, getIslandList().Count, iterations, cap + 1);
+        String islandsString = "";
+        foreach (Island i in getIslandList()) {
+            islandsString += "(" + i.getX() + ", " + i.getY() + "), ";
+        }
+
+        islandsString = islandsString.Substring(0, islandsString.Length - 2);
+        Debug.LogFormat("[Bridges #{0}] Islands placed at: {1}.", _moduleId, islandsString);
     }
 
     void addExtraBridges() {
@@ -594,11 +1487,11 @@ public class bridges : MonoBehaviour {
         Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, selX3[4].transform);
         if (!_lightsOn || moduleSolved) return;
 
-        Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} pressed.", _moduleId, x, y);
+        //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} pressed.", _moduleId, x, y);
         Island clicked = getIslandFromGrid(x, y);
         //Debug.LogFormat("[Bridges #{0}] Made it past getting the clicked island from the grid.", _moduleId);
         if (clicked == null) {
-            Debug.LogFormat("[Bridges #{0}] For some reason that island doesn't exist. Not sure how you clicked it. Auto solving. Please contact AAces#2652 on discord with this log file so we can fix this.", _moduleId);
+            Debug.LogFormat("[Bridges #{0}] For some reason that island doesn't exist. Not sure how you clicked it. Auto solving. Please contact AAces#2652 on discord at your earliest convenience with this log file so we can fix this.", _moduleId);
             module.HandlePass();
             moduleSolved = true;
             return;
@@ -613,7 +1506,7 @@ public class bridges : MonoBehaviour {
             if (currentlySelected.getX() == x && currentlySelected.getY() == y) {
                 //Debug.LogFormat("[Bridges #{0}] Clicked the same, made it past the .Equals check", _moduleId);
                 selected = false;
-                Debug.LogFormat("[Bridges #{0}] Unselecting island at {1}, {2}.", _moduleId, x, y);
+                //Debug.LogFormat("[Bridges #{0}] Unselecting island at {1}, {2}.", _moduleId, x, y);
                 if (clicked.getCurrentConnections() == clicked.getNeededConnections())
                 {
                     islandListObj[x][y].GetComponent<MeshRenderer>().material = solvedMat;
@@ -703,6 +1596,60 @@ public class bridges : MonoBehaviour {
         }
     }
 
+    /*void drawSolutionEdges() { 
+        foreach (var g in verticalSingles)
+        {
+            foreach (var h in g)
+            {
+                h.SetActive(false);
+            }
+        }
+        foreach (var g in verticalDoubles)
+        {
+            foreach (var h in g)
+            {
+                h.SetActive(false);
+            }
+        }
+        foreach (var g in horizontalSingles)
+        {
+            foreach (var h in g)
+            {
+                h.SetActive(false);
+            }
+        }
+        foreach (var g in horizontalDoubles)
+        {
+            foreach (var h in g)
+            {
+                h.SetActive(false);
+            }
+        }
+        for (var x = 0; x < 7; x++)
+        {
+            for (var y = 0; y < 9; y++)
+            {
+                switch (getSolutionEdge(x, y))
+                {
+                    case Edge.None:
+                        break;
+                    case Edge.Vertical:
+                        verticalSingles[x][y].SetActive(true);
+                        break;
+                    case Edge.DoubleVertical:
+                        verticalDoubles[x][y].SetActive(true);
+                        break;
+                    case Edge.Horizontal: //Horizontal need x and y flipped because of how the arrays work
+                        horizontalSingles[y][x].SetActive(true);
+                        break;
+                    case Edge.DoubleHorizontal:
+                        horizontalDoubles[y][x].SetActive(true);
+                        break;
+                }
+            }
+        }
+    }*/
+
     void checkSolution() {
         bool solved = true;
         foreach (Island i in getIslandList()) {
@@ -733,6 +1680,10 @@ public class bridges : MonoBehaviour {
 
     bool checkIfSingleGroup() {
         Island i = getRandomIslandFromList();
+        foreach (Island h in getIslandList())
+        {
+            h.unMark();
+        }
         i.mark();
         finalCounter = 0;
         checkDirection(0, i);
@@ -861,6 +1812,148 @@ public class bridges : MonoBehaviour {
         }
     }
 
+    private int finalSolutionCounter = 0;
+
+    bool checkSolutionIfSingleGroup()
+    {
+        Island i = getRandomIslandFromList();
+        foreach (Island h in getIslandList())
+        {
+            h.unMark();
+        }
+        i.mark();
+        finalSolutionCounter = 0;
+        checkSolutionDirection(0, i);
+        checkSolutionDirection(1, i);
+        checkSolutionDirection(2, i);
+        checkSolutionDirection(3, i);
+        if (finalSolutionCounter != getIslandList().Count - 1)
+        {
+
+            foreach (Island h in getIslandList())
+            {
+                h.unMark();
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    void checkSolutionDirection(int dir, Island i)
+    {
+
+        int x = i.getX();
+        int y = i.getY();
+        switch (dir)
+        {
+            case 0:
+                if (y <= 1) return;
+                if (getSolutionEdge(x, y - 1) == Edge.Vertical || getSolutionEdge(x, y - 1) == Edge.DoubleVertical)
+                {
+                    do
+                    {
+                        y--;
+                    } while (getSolutionEdge(x, y) == Edge.Vertical || getSolutionEdge(x, y) == Edge.DoubleVertical);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    finalSolutionCounter++;
+                    checkSolutionDirection(0, g);
+                    checkSolutionDirection(1, g);
+                    checkSolutionDirection(3, g);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+            case 1:
+                if (x >= 5) return;
+                if (getSolutionEdge(x + 1, y) == Edge.Horizontal || getSolutionEdge(x + 1, y) == Edge.DoubleHorizontal)
+                {
+                    do
+                    {
+                        x++;
+                    } while (getSolutionEdge(x, y) == Edge.Horizontal || getSolutionEdge(x, y) == Edge.DoubleHorizontal);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    finalSolutionCounter++;
+                    checkSolutionDirection(0, g);
+                    checkSolutionDirection(1, g);
+                    checkSolutionDirection(2, g);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+            case 2:
+                if (y >= 7) return;
+                if (getSolutionEdge(x, y + 1) == Edge.Vertical || getSolutionEdge(x, y + 1) == Edge.DoubleVertical)
+                {
+                    do
+                    {
+                        y++;
+                    } while (getSolutionEdge(x, y) == Edge.Vertical || getSolutionEdge(x, y) == Edge.DoubleVertical);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    finalSolutionCounter++;
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    checkSolutionDirection(1, g);
+                    checkSolutionDirection(2, g);
+                    checkSolutionDirection(3, g);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+            case 3:
+                if (x <= 1) return;
+                if (getSolutionEdge(x - 1, y) == Edge.Horizontal || getSolutionEdge(x - 1, y) == Edge.DoubleHorizontal)
+                {
+                    do
+                    {
+                        x--;
+                    } while (getSolutionEdge(x, y) == Edge.Horizontal || getSolutionEdge(x, y) == Edge.DoubleHorizontal);
+
+                    Island g = getIslandFromGrid(x, y);
+                    if (g.isMarked())
+                    {
+                        return;
+                    }
+                    g.mark();
+                    //Debug.LogFormat("Marked {0}, {1}", x, y);
+                    finalSolutionCounter++;
+                    checkSolutionDirection(0, g);
+                    checkSolutionDirection(2, g);
+                    checkSolutionDirection(3, g);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+        }
+    }
+
     private IEnumerator warningFlash() {
         yield return new WaitForSeconds(0.25f);
         foreach (Island i in getIslandList()) {
@@ -948,7 +2041,7 @@ public class bridges : MonoBehaviour {
         }
     }
 
-    public  void IslandsInit()
+    public void IslandsInit()
     {
         islandGrid = new Island[,]{
             { null, null, null, null, null, null, null, null, null },
@@ -971,6 +2064,16 @@ public class bridges : MonoBehaviour {
         };
 
         inputtedEdgeGrid = new[,]{
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+            { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
+        };
+
+        solutionEdgeGrid = new[,]{
             { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
             { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
             { Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None, Edge.None },
@@ -1012,6 +2115,16 @@ public class bridges : MonoBehaviour {
     void setInputtedEdge(int x, int y, Edge edge)
     {
         inputtedEdgeGrid[x, y] = edge;
+    }
+
+    Edge getSolutionEdge(int x, int y)
+    {
+        return solutionEdgeGrid[x, y];
+    }
+
+    void setSolutionEdge(int x, int y, Edge edge)
+    {
+        solutionEdgeGrid[x, y] = edge;
     }
 
     Island getRandomIslandFromList()
@@ -1088,6 +2201,123 @@ public class bridges : MonoBehaviour {
 
     }
 
+    void solutionCheckConnection(Island is1, Island is2) {
+        int x1 = is1.getX();
+        int x2 = is2.getX();
+        int y1 = is1.getY();
+        int y2 = is2.getY();
+
+        if (!(x1 == x2 || y1 == y2))
+        {
+            return;
+        }
+
+        if (x1 == x2)
+        {
+            for (int y = (y1 < y2 ? y1 : y2) + 1; y < (y1 > y2 ? y1 : y2); y++)
+            {
+                if (getIslandFromGrid(x1, y) != null)
+                {
+                    return;
+                }
+
+                if (getSolutionEdge(x1, y) == Edge.Horizontal)
+                {
+                    return;
+                }
+
+                if (getSolutionEdge(x1, y) == Edge.DoubleHorizontal)
+                {
+                    return;
+                }
+            }
+
+            if (getSolutionEdge(x1, (y1 < y2 ? y1 : y2) + 1) == Edge.None)
+            {
+                for (int y = (y1 < y2 ? y1 : y2) + 1; y < (y1 > y2 ? y1 : y2); y++)
+                {
+                    setSolutionEdge(x1, y, Edge.Vertical);
+                }
+                is1.addSolutionConnections();
+                is2.addSolutionConnections();
+            }
+            else if (getSolutionEdge(x1, (y1 < y2 ? y1 : y2) + 1) == Edge.Vertical)
+            {
+                for (int y = (y1 < y2 ? y1 : y2) + 1; y < (y1 > y2 ? y1 : y2); y++)
+                {
+                    setSolutionEdge(x1, y, Edge.DoubleVertical);
+                }
+                is1.addSolutionConnections();
+                is2.addSolutionConnections();
+            }
+            else if (getSolutionEdge(x1, (y1 < y2 ? y1 : y2) + 1) == Edge.DoubleVertical)
+            {
+                for (int y = (y1 < y2 ? y1 : y2) + 1; y < (y1 > y2 ? y1 : y2); y++)
+                {
+                    setSolutionEdge(x1, y, Edge.None);
+                }
+                is1.subtractTwoSolutionConnections();
+                is2.subtractTwoSolutionConnections();
+            }
+
+            return;
+
+        }
+        else if (y1 == y2)
+        {
+            for (int x = (x1 < x2 ? x1 : x2) + 1; x < (x1 > x2 ? x1 : x2); x++)
+            {
+                if (getIslandFromGrid(x, y1) != null)
+                {
+                    return;
+                }
+
+                if (getSolutionEdge(x, y1) == Edge.Vertical)
+                {
+                    return;
+                }
+
+                if (getSolutionEdge(x, y1) == Edge.DoubleVertical)
+                {
+                    return;
+                }
+            }
+            if (getSolutionEdge((x1 < x2 ? x1 : x2) + 1, y1) == Edge.None)
+            {
+                for (int x = (x1 < x2 ? x1 : x2) + 1; x < (x1 > x2 ? x1 : x2); x++)
+                {
+                    setSolutionEdge(x, y1, Edge.Horizontal);
+                }
+                is1.addSolutionConnections();
+                is2.addSolutionConnections();
+            }
+            else if (getSolutionEdge((x1 < x2 ? x1 : x2) + 1, y1) == Edge.Horizontal)
+            {
+                for (int x = (x1 < x2 ? x1 : x2) + 1; x < (x1 > x2 ? x1 : x2); x++)
+                {
+                    setSolutionEdge(x, y1, Edge.DoubleHorizontal);
+                }
+
+                is1.addSolutionConnections();
+                is2.addSolutionConnections();
+            }
+            else if (getSolutionEdge((x1 < x2 ? x1 : x2) + 1, y1) == Edge.DoubleHorizontal)
+            {
+                for (int x = (x1 < x2 ? x1 : x2) + 1; x < (x1 > x2 ? x1 : x2); x++)
+                {
+                    setSolutionEdge(x, y1, Edge.None);
+                }
+
+                is1.subtractTwoSolutionConnections();
+                is2.subtractTwoSolutionConnections();
+            }
+
+            return;
+        }
+
+        return;
+    }
+
     String playerConnect(Island is1, Island is2)
     { //true=strike
         int x1 = is1.getX();
@@ -1098,6 +2328,7 @@ public class bridges : MonoBehaviour {
         if (!(x1 == x2 || y1 == y2))
         {
             StartCoroutine(islandFlash(x2, y2));
+            StartCoroutine(islandFlash(x1, y1));
             return "You can not connect these two islands, they do not share an x or y coordinate!";
         }
 
@@ -1212,11 +2443,30 @@ public class bridges : MonoBehaviour {
         return "";
     }
 
+    bool areNeighbors(Island i, Island h) {
+        return i.getNeighbors().Contains(h);
+    }
+    bool areConnectedNeighbors(Island i, Island h)
+    {
+        return i.getConnectedNeighbors().Contains(h);
+    }
+
+    void addNeighbors(Island i, Island h) {
+        i.addNeighbor(h);
+        h.addNeighbor(i);
+    }
+
+    void addConnectedNeighbors(Island i, Island h)
+    {
+        i.addConnectedNeighbor(h);
+        h.addConnectedNeighbor(i);
+    }
 }
 
 class Island {
-    private int x, y, neededConnections, currentConnections;
+    private int x, y, neededConnections, currentConnections, solutionConnections;
     private bool marked;
+    private List<Island> neighbors, bannedNeighbors, connectedNeighbors;
 
     public Island(int x, int y) {
         this.x = x;
@@ -1224,6 +2474,18 @@ class Island {
         this.neededConnections = 0;
         this.currentConnections = 0;
         this.marked = false;
+        this.neighbors = new List<Island>();
+        this.bannedNeighbors = new List<Island>();
+        this.connectedNeighbors = new List<Island>();
+        this.solutionConnections = 0;
+    }
+
+    public void clearNeighborList() {
+        this.neighbors.Clear();
+    }
+    public void clearConnectedNeighborList()
+    {
+        this.connectedNeighbors.Clear();
     }
 
     public void mark() {
@@ -1238,12 +2500,41 @@ class Island {
         return this.marked;
     }
 
+    public List<Island> getBannedNeighbors() {
+        return this.bannedNeighbors;
+    }
+    public List<Island> getConnectedNeighbors()
+    {
+        return this.connectedNeighbors;
+    }
+
+    public void addBannedNeighbor(Island i) {
+        bannedNeighbors.Add(i);
+    }
+
+    public void addConnectedNeighbor(Island i)
+    {
+        connectedNeighbors.Add(i);
+    }
+
+    public bool isSolved() {
+        return getSolutionConnections() == getNeededConnections();
+    }
+
     public int getX() {
         return this.x;
     }
 
     public int getY() {
         return this.y;
+    }
+
+    public List<Island> getNeighbors() {
+        return neighbors;
+    }
+
+    public void addNeighbor(Island i) {
+        neighbors.Add(i);
     }
 
     public int getNeededConnections() {
@@ -1253,6 +2544,10 @@ class Island {
     public void addNeededConnection() {
         //Debug.Log("Added needed connection to the island at " + this.x + " " + this.y);
         this.neededConnections++;
+    }
+
+    public void removeNeededConnection() {
+        this.neededConnections--;
     }
 
     public int getCurrentConnections() {
@@ -1265,7 +2560,29 @@ class Island {
 
     public void subtractTwoCurrentConnections() {
         this.currentConnections-=2;
-    }   
+    }
+
+    public int getSolutionConnections()
+    {
+        return this.solutionConnections;
+    }
+
+    public void addSolutionConnections()
+    {
+        this.solutionConnections++;
+    }
+
+    public void subtractTwoSolutionConnections()
+    {
+        this.solutionConnections -= 2;
+    }
+
+    public void resetSolutionAttempt() {
+        clearNeighborList();
+        clearConnectedNeighborList();
+        this.bannedNeighbors.Clear();
+        this.solutionConnections = 0;
+    }
 }
 
 enum Edge {
