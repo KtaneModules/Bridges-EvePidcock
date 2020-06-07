@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using KModkit;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -32,12 +33,16 @@ public class bridges : MonoBehaviour {
     private List<Island> islandList;
 
     public KMSelectable[] selX0, selX1, selX2, selX3, selX4, selX5, selX6;
+    public KMSelectable submit;
 
-    public Material solvedMat, unsolvedMat, selectedMat, overMat;
+    public Material solvedMat, unsolvedMat, selectedMat, overMat, LEDGreen, LEDRed;
+    public MeshRenderer indicator;
+    public Sprite[] images;
 
     private Island currentlySelected = null;
 
     private bool _lightsOn, selected = false;
+    private int shift = 0;
 
     //Logging
     static int _moduleIdCounter = 1;
@@ -100,6 +105,11 @@ public class bridges : MonoBehaviour {
                 return false;
             };
         }
+
+        submit.OnInteract += delegate {
+            handleSubmitPress();
+            return false;
+        };
 
     }
 
@@ -259,7 +269,6 @@ public class bridges : MonoBehaviour {
                             //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
                             break;
                         }
-
                         /*if (island.getConnectedNeighbors().Count == 1 && island.getNeighbors().Count >= 1) { //This breaks it for some reason? But I kinda need it
                             if (island.getConnectedNeighbors()[0].getNeededConnections() == 1) {
                                     foreach (Island n in island.getNeighbors()) {
@@ -270,7 +279,6 @@ public class bridges : MonoBehaviour {
                                     }
                             }
                         }*/
-
                         if (island.getNeighbors().Count == 2 && island.getConnectedNeighbors().Count == 0) {
                             if (island.getNeighbors()[0].getNeededConnections() == 2) {
                                 solutionCheckConnection(island, island.getNeighbors()[1]);
@@ -282,7 +290,6 @@ public class bridges : MonoBehaviour {
                                 break;
                             }
                         }
-
                         if (island.getNeighbors().Count == 1 && remainingConnections == 1) {
                             if (island.getConnectedNeighbors().Count == 0) {
                                 solutionCheckConnection(island, island.getNeighbors()[0]);
@@ -308,15 +315,12 @@ public class bridges : MonoBehaviour {
 
                             break;
                         }
-
                         if (island.getConnectedNeighbors().Count == 1 && island.getNeighbors().Count == 0 && remainingConnections == 1) {
                             solutionCheckConnection(island, island.getConnectedNeighbors()[0]);
                             //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getConnectedNeighbors()[0].getX(), island.getConnectedNeighbors()[0].getY());
 
                             break;
                         }
-
-                        
                         break;
                     case 3:
                         foreach (Island n in island.getNeighbors())
@@ -799,7 +803,7 @@ public class bridges : MonoBehaviour {
 
         if (solved) {
             Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, this puzzle should only have one solution. If you find that it doesn't, contact AAces#2652 on Discord with this log file (and maybe a screenshot of the module highlighting where multiple solutions arise if you can).", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
-            //Puzzle is good
+            indicator.material = LEDGreen;
         } else {
             if (!cont) {
                 if (regenerationCounter < 3)
@@ -812,6 +816,7 @@ public class bridges : MonoBehaviour {
                 {
                     generatePuzzle(false);
                     Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                    indicator.material = LEDRed;
                 }
 
                 return;
@@ -865,7 +870,8 @@ public class bridges : MonoBehaviour {
                     generatePuzzle(true);
                 } else {
                     generatePuzzle(false);
-                    Debug.LogFormat("[Bridges #{0}] After {1} regenerations, couldn't guarantee a unique solution.", _moduleId, regenerationCounter);
+                    Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                    indicator.material = LEDRed;
                 }
             } else if(regenerationCounter < 3) {
                 solutionAttemptCounter = 0;
@@ -873,7 +879,8 @@ public class bridges : MonoBehaviour {
                 generatePuzzle(true);
             } else {
                 generatePuzzle(false);
-                Debug.LogFormat("[Bridges #{0}] After {1} regenerations, couldn't guarantee a unique solution.", _moduleId, regenerationCounter);
+                Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                indicator.material = LEDRed;
             }
         }
     }
@@ -1474,13 +1481,17 @@ public class bridges : MonoBehaviour {
     }
 
     void displayIslands() {
+        shift = (Bomb.GetBatteryCount() + getIslandList().Count) % 8;
         foreach (Island i in getIslandList()) {
             int x = i.getX();
             int y = i.getY();
             islandListObj[x][y].GetComponentInChildren<TextMesh>().text = i.getNeededConnections().ToString();
             islandListObj[x][y].SetActive(true);
+            islandListObj[x][y].transform.GetChild(0).gameObject.SetActive(false);
             islandListObj[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+            islandListObj[x][y].GetComponentInChildren<SpriteRenderer>().sprite = images[(i.getNeededConnections() + shift - 1)%8];
         }
+        Debug.LogFormat("[Bridges #{0}] Shifting symbol table to the left by {1}.", _moduleId, shift);
     }
 
     void handleIslandPress(int x, int y) {
@@ -1507,43 +1518,38 @@ public class bridges : MonoBehaviour {
                 //Debug.LogFormat("[Bridges #{0}] Clicked the same, made it past the .Equals check", _moduleId);
                 selected = false;
                 //Debug.LogFormat("[Bridges #{0}] Unselecting island at {1}, {2}.", _moduleId, x, y);
-                if (clicked.getCurrentConnections() == clicked.getNeededConnections())
-                {
-                    islandListObj[x][y].GetComponent<MeshRenderer>().material = solvedMat;
-                }
-                else if (clicked.getCurrentConnections() > clicked.getNeededConnections()) {
-                    islandListObj[x][y].GetComponent<MeshRenderer>().material = overMat;
-                } else
-                {
-                    islandListObj[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
-                }
-                
+                islandListObj[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
+
+
                 return;
             } else {
                 //Debug.LogFormat("[Bridges #{0}] Didn't click the same, made it past the .Equals check", _moduleId);
                 String error = playerConnect(currentlySelected, clicked);
                 //Debug.LogFormat("[Bridges #{0}] That was the second.", _moduleId);
+                foreach (Island i in getIslandList())
+                {
+                    islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
+                }
                 if (error.Equals("")) {
                     selected = false;
                     drawEdges();
-                    checkSolution();
+
                 } else {
                     module.HandleStrike();
                     selected = false;
-                    foreach (Island i in getIslandList()) {
-                        if (i.getCurrentConnections() == i.getNeededConnections()) {
-                            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
-                        } else if (i.getCurrentConnections() > i.getNeededConnections()) {
-                            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
-                        } else {
-                            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
-                        }
-                    }
+                    
 
                     Debug.LogFormat("[Bridges #{0}] Strike! {1} Please contact AAces#2652 on discord with this log file if you feel that this is an error.", _moduleId, error);
                 }
             }
         }
+    }
+
+    void handleSubmitPress() {
+        Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, submit.transform);
+        if (!_lightsOn || moduleSolved) return;
+
+        checkSolution();
     }
 
     void drawEdges() {
@@ -1653,27 +1659,29 @@ public class bridges : MonoBehaviour {
     void checkSolution() {
         bool solved = true;
         foreach (Island i in getIslandList()) {
-            if (i.getCurrentConnections() == i.getNeededConnections()) {
-                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
-            } else if (i.getCurrentConnections() > i.getNeededConnections())
-            {
-                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
-                solved = false;
-            } else {
-                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
+            if (i.getCurrentConnections() != i.getNeededConnections()) {
                 solved = false;
             }
         }
 
+        bool s = true;
         if (solved) {
             solved = checkIfSingleGroup();
+            s = solved;
         }
 
         if (solved) {
             module.HandlePass();
+            StartCoroutine(solvedAnim());
             moduleSolved = true;
             Debug.LogFormat("[Bridges #{0}] Module Solved!", _moduleId);
-        } 
+        } else {
+            if (s) {
+                module.HandleStrike();
+                StartCoroutine(strikeAnim());
+                Debug.LogFormat("[Bridges #{0}] Strike! Not all islands have the correct number of connections! If you feel that this is an error, please contact AAces#2652 on Discord.", _moduleId);
+            }
+        }
     }
 
     private int finalCounter = 0;
@@ -1972,18 +1980,7 @@ public class bridges : MonoBehaviour {
         yield return new WaitForSeconds(0.25f);
         foreach (Island i in getIslandList())
         {
-            if (i.getCurrentConnections() == i.getNeededConnections())
-            {
-                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
-            }
-            else if (i.getCurrentConnections() > i.getNeededConnections())
-            {
-                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
-            }
-            else
-            {
-                islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
-            }
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
         }
 
     }
@@ -2038,6 +2035,49 @@ public class bridges : MonoBehaviour {
                 yield return new WaitForSeconds(0.25f);
                 verticalDoubles[x][y].GetComponent<MeshRenderer>().material = unsolvedMat;
                 break;
+        }
+    }
+
+    private IEnumerator solvedAnim() {
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in getIslandList()) {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
+            yield return new WaitForSeconds(0.15f);
+        }
+        foreach (Island i in getIslandList())
+        {
+            islandListObj[i.getX()][i.getY()].transform.GetChild(0).gameObject.SetActive(true);
+            islandListObj[i.getX()][i.getY()].transform.GetChild(2).gameObject.SetActive(false);
+            yield return new WaitForSeconds(0.15f);
+        }
+    }
+
+    private IEnumerator strikeAnim() {
+        yield return new WaitForSeconds(0.25f);
+        List<Island> list = new List<Island>();
+        foreach (Island i in getIslandList()) {
+            if (i.getNeededConnections() != i.getCurrentConnections()) {
+                list.Add(i);
+            }
+        }
+
+        foreach (Island i in list) {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
+        }
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in list)
+        {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
+        }
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in list)
+        {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = overMat;
+        }
+        yield return new WaitForSeconds(0.25f);
+        foreach (Island i in list)
+        {
+            islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = unsolvedMat;
         }
     }
 
@@ -2446,6 +2486,7 @@ public class bridges : MonoBehaviour {
     bool areNeighbors(Island i, Island h) {
         return i.getNeighbors().Contains(h);
     }
+
     bool areConnectedNeighbors(Island i, Island h)
     {
         return i.getConnectedNeighbors().Contains(h);

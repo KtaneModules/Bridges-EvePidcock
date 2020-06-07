@@ -17,6 +17,6 @@ MonoBehaviour:
   description: "Solve a Hashi puzzle!\r\n\nThe Camera Zoom mod is recommended.\n\r\nManual
     link (HTML): Coming soon\r\nManual link (PDF): Coming soon\r\n\r\nSource Code:
     https://github.com/AAces/Bridges\r\n\r\nMade by: AAces\r\n"
-  version: 0.1
+  version: 0.3
   outputFolder: build
   previewImage: {fileID: 2800000, guid: ded14c62945eab74eb98a71d74009fa4, type: 3}
