@@ -187,31 +187,30 @@ public class bridges : MonoBehaviour {
             }
         }
         generatePuzzle(true);
+        log();
         displayIslands();
         allBridges.SetActive(true);
         allIslands.SetActive(true);
     }
-    int generationCount = 0;
+
+    private int generationCount = 0;
     void generatePuzzle(bool checkU) {
         generationCount++;
-        Debug.LogFormat("[Bridges #{0}] Initiating puzzle generation #{1}.", _moduleId, generationCount);
-        Debug.LogFormat("[Bridges #{0}] Initiating island generation #{1}.", _moduleId, generationCount);
+        Debug.LogFormat("[Bridges #{0}] Initiating puzzle generation: attempt #{1}.", _moduleId, generationCount);
         IslandsInit();
         drawEdges();
         setupIslands();
-        Debug.LogFormat("[Bridges #{0}] Initiating extra bridge generation #{1}.", _moduleId, generationCount);
         addExtraBridges();
-        Debug.LogFormat("[Bridges #{0}] Initiating double bridge generation #{1}.", _moduleId, generationCount);
         addDoubleBridges();
         updateNeighbors();
         if (checkU) {
-            Debug.LogFormat("[Bridges #{0}] Initiating uniqueness check #{1}.", _moduleId, generationCount);
             checkUniqueness();
         }
     }
 
     private int solutionAttemptCounter = 0, solutionTotalAttemptCounter = 0, regenerationCounter = 0;
 
+    private String message = "";
     void checkUniqueness() {
         foreach (Island i in getIslandList()) {
             i.resetSolutionAttempt();
@@ -802,7 +801,7 @@ public class bridges : MonoBehaviour {
         List<Island> unsolved = new List<Island>();
 
         if (solved) {
-            Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, this puzzle should only have one solution. If you find that it doesn't, contact AAces#2652 on Discord with this log file (and maybe a screenshot of the module highlighting where multiple solutions arise if you can).", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+            message = "After "+regenerationCounter+" regenerations and "+solutionTotalAttemptCounter+" total solution removal attempts, this puzzle should only have one solution. If you find that it doesn't, contact AAces#2652 on Discord with this log file (and maybe a screenshot of the module highlighting where multiple solutions arise if you can).";
             indicator.material = LEDGreen;
         } else {
             if (!cont) {
@@ -815,7 +814,7 @@ public class bridges : MonoBehaviour {
                 else
                 {
                     generatePuzzle(false);
-                    Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                    message = "After " + regenerationCounter + " regenerations and " + solutionTotalAttemptCounter + " total solution removal attempts, couldn't guarantee a unique solution, sorry.";
                     indicator.material = LEDRed;
                 }
 
@@ -870,7 +869,7 @@ public class bridges : MonoBehaviour {
                     generatePuzzle(true);
                 } else {
                     generatePuzzle(false);
-                    Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                    message = "After " + regenerationCounter + " regenerations and " + solutionTotalAttemptCounter + " total solution removal attempts, couldn't guarantee a unique solution, sorry.";
                     indicator.material = LEDRed;
                 }
             } else if(regenerationCounter < 3) {
@@ -879,7 +878,7 @@ public class bridges : MonoBehaviour {
                 generatePuzzle(true);
             } else {
                 generatePuzzle(false);
-                Debug.LogFormat("[Bridges #{0}] After {1} regenerations and {2} total solution removal attempts, couldn't guarantee a unique solution, sorry.", _moduleId, regenerationCounter, solutionTotalAttemptCounter);
+                message = "After " + regenerationCounter + " regenerations and " + solutionTotalAttemptCounter + " total solution removal attempts, couldn't guarantee a unique solution, sorry.";
                 indicator.material = LEDRed;
             }
         }
@@ -1084,9 +1083,10 @@ public class bridges : MonoBehaviour {
         }
     }
 
+    private int iterations = 0;
+    private int cap = 325;
     void setupIslands() {
-        int cap = 325;
-        int iterations = 0;       
+        iterations = 0;
         int x = Random.Range(0, 7);
         int y = Random.Range(0, 9);
 
@@ -1261,18 +1261,27 @@ public class bridges : MonoBehaviour {
                     break;
             }
         }
+        
+    }
+
+    void log() {
         Debug.LogFormat("[Bridges #{0}] Completed island placement. Placed {1} islands after {2} iterations (Capped at about {3}).", _moduleId, getIslandList().Count, iterations, cap + 1);
         String islandsString = "";
-        foreach (Island i in getIslandList()) {
-            islandsString += "(" + i.getX() + ", " + i.getY() + "), ";
+        foreach (Island i in getIslandList())
+        {
+            islandsString += "(" + i.getX() + ", " + i.getY() + ", " + i.getNeededConnections() + "), ";
         }
 
         islandsString = islandsString.Substring(0, islandsString.Length - 2);
-        Debug.LogFormat("[Bridges #{0}] Islands placed at: {1}.", _moduleId, islandsString);
+        Debug.LogFormat("[Bridges #{0}] Islands placed at (x, y, connections): {1}.", _moduleId, islandsString);
+        Debug.LogFormat("[Bridges #{0}] Added {1} extra connection(s).", _moduleId, extraBridges);
+        Debug.LogFormat("[Bridges #{0}] Made {1} connection(s) doubled.", _moduleId, doubleBridges);
+        Debug.LogFormat("[Bridges #{0}] {1}", _moduleId, message);
     }
 
+    private int extraBridges = 0;
     void addExtraBridges() {
-        int extraBridges = 0;
+        extraBridges = 0;
         for (int i = 0; i < 50; i++)
         {
             Island first = getRandomIslandFromList();
@@ -1375,11 +1384,12 @@ public class bridges : MonoBehaviour {
                     break;
             }
         }
-        Debug.LogFormat("[Bridges #{0}] Added {1} extra connection(s).", _moduleId, extraBridges);
+        
     }
 
+    private int doubleBridges = 0;
     void addDoubleBridges() {
-        int doubleBridges = 0;
+        doubleBridges = 0;
         for (int i = 0; i < 15; i++) {
             Island first = getRandomIslandFromList();
             Island second;
@@ -1477,7 +1487,7 @@ public class bridges : MonoBehaviour {
                     break;
             }
         }
-        Debug.LogFormat("[Bridges #{0}] Made {1} connection(s) doubled.", _moduleId, doubleBridges);
+        
     }
 
     void displayIslands() {
@@ -2039,16 +2049,16 @@ public class bridges : MonoBehaviour {
     }
 
     private IEnumerator solvedAnim() {
-        yield return new WaitForSeconds(0.25f);
+        yield return new WaitForSeconds(0.15f);
         foreach (Island i in getIslandList()) {
             islandListObj[i.getX()][i.getY()].GetComponent<MeshRenderer>().material = solvedMat;
-            yield return new WaitForSeconds(0.15f);
+            yield return new WaitForSeconds(0.075f);
         }
         foreach (Island i in getIslandList())
         {
             islandListObj[i.getX()][i.getY()].transform.GetChild(0).gameObject.SetActive(true);
             islandListObj[i.getX()][i.getY()].transform.GetChild(2).gameObject.SetActive(false);
-            yield return new WaitForSeconds(0.15f);
+            yield return new WaitForSeconds(0.075f);
         }
     }
 
