@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using KModkit;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -1558,7 +1559,7 @@ public class bridges : MonoBehaviour {
     void handleSubmitPress() {
         Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, submit.transform);
         if (!_lightsOn || moduleSolved) return;
-
+        submit.AddInteractionPunch();
         checkSolution();
     }
 
@@ -2511,6 +2512,70 @@ public class bridges : MonoBehaviour {
     {
         i.addConnectedNeighbor(h);
         h.addConnectedNeighbor(i);
+    }
+
+#pragma warning disable 414
+    private string TwitchHelpMessage = "Use !{0} press b1 b4 g7 e7 to press the islands at the respective coordinates. Use !{0} submit to submit. Letters refer to columns and numbers refer to rows. The top left corner is a1 and the bottom right corner is g9.";
+#pragma warning restore 414
+    public KMSelectable[] ProcessTwitchCommand(string command)
+    {
+        command = command.Trim().ToUpperInvariant();
+        List<KMSelectable> Buttons = new List<KMSelectable> { };
+        if (command.Equals("SUBMIT")) {
+            Buttons.Add(submit);
+            return Buttons.ToArray();
+        }
+
+        if (!command.StartsWith("PRESS")) return null;
+        var buttons = new Dictionary<string, KMSelectable>();
+        for (int i = 1; i < 10; i++) {
+            buttons.Add("A" + i, selX0[i-1]);
+        }
+        for (int i = 1; i < 10; i++)
+        {
+            buttons.Add("B" + i, selX1[i - 1]);
+        }
+        for (int i = 1; i < 10; i++)
+        {
+            buttons.Add("C" + i, selX2[i - 1]);
+        }
+        for (int i = 1; i < 10; i++)
+        {
+            buttons.Add("D" + i, selX3[i - 1]);
+        }
+        for (int i = 1; i < 10; i++)
+        {
+            buttons.Add("E" + i, selX4[i - 1]);
+        }
+        for (int i = 1; i < 10; i++)
+        {
+            buttons.Add("F" + i, selX5[i - 1]);
+        }
+        for (int i = 1; i < 10; i++)
+        {
+            buttons.Add("G" + i, selX6[i - 1]);
+        }
+
+        command = command.Substring(6);
+        string[] parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        
+        if (Regex.IsMatch(command, "([A-G][1-9])+"))
+        {
+            
+            foreach (string part in parts)
+            {
+                Debug.Log(part);
+                Debug.Log("x=" + (part.ToCharArray()[0] - 65) + " y=" + (part.ToCharArray()[1] - '0' - 1));
+                if (getIslandFromGrid(char.ToUpper(part.ToCharArray()[0]) - 65, part.ToCharArray()[1]- '0' - 1) == null) {
+                    return null;
+                }
+                Buttons.Add(buttons[part]);
+            }
+
+            return Buttons.ToArray();
+        }
+
+        return null;
     }
 }
 
