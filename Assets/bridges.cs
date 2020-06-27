@@ -2564,12 +2564,19 @@ public class bridges : MonoBehaviour {
             
             foreach (string part in parts)
             {
-                Debug.Log(part);
-                Debug.Log("x=" + (part.ToCharArray()[0] - 65) + " y=" + (part.ToCharArray()[1] - '0' - 1));
-                if (getIslandFromGrid(char.ToUpper(part.ToCharArray()[0]) - 65, part.ToCharArray()[1]- '0' - 1) == null) {
+                if (Regex.IsMatch(part, "^([A-G][1-9])"))
+                {
+                    /*Debug.Log(part);
+                    Debug.Log("x=" + (part.ToCharArray()[0] - 65) + " y=" + (part.ToCharArray()[1] - '0' - 1));*/
+                    if (getIslandFromGrid(char.ToUpper(part.ToCharArray()[0]) - 65, part.ToCharArray()[1] - '0' - 1) == null)
+                    {
+                        return null;
+                    }
+                    Buttons.Add(buttons[part]);
+                } else
+                {
                     return null;
                 }
-                Buttons.Add(buttons[part]);
             }
 
             return Buttons.ToArray();
