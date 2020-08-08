@@ -2564,7 +2564,7 @@ public class bridges : MonoBehaviour {
             
             foreach (string part in parts)
             {
-                if (Regex.IsMatch(part, "^([A-G][1-9])"))
+                if (Regex.IsMatch(part, "^([A-G][1-9])$"))
                 {
                     /*Debug.Log(part);
                     Debug.Log("x=" + (part.ToCharArray()[0] - 65) + " y=" + (part.ToCharArray()[1] - '0' - 1));*/
