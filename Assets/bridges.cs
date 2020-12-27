@@ -749,27 +749,48 @@ public class bridges : MonoBehaviour {
                         }
                         break;
                     case 8:
+                        List<Island> allNeighbors = new List<Island>();
+                        if (island.getNeighbors().Count != 0)
+                        {
+                            foreach (Island l in island.getNeighbors())
+                            {
+                                allNeighbors.Add(l);
+                            }
+                        }
+                        if (island.getConnectedNeighbors().Count != 0)
+                        {
+                            foreach (Island l in island.getConnectedNeighbors())
+                            {
+                                allNeighbors.Add(l);
+                            }
+                        }
+                        if(allNeighbors.Count != 4)
+                        {
+                            Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} didn't have 4 neighbors? This is an issue.", _moduleId, island.getX(), island.getY());
+                            break;
+                        }
                         int ro = 0;
-                        while (island.getSolutionConnections() != 8) {
+                        while (island.getSolutionConnections() != 8)
+                        {
                             ro++;
                             if (ro >= 16)
                             {
                                 //Debug.LogFormat("[Bridges #{0}] Island at {1}, {2} took too long to connect, skipping.", _moduleId, island.getX(), island.getY());
                                 break;
                             }
-                            solutionCheckConnection(island, island.getNeighbors()[0]);
+                            solutionCheckConnection(island, allNeighbors[0]);
                             //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[0].getX(), island.getNeighbors()[0].getY());
 
                             if (island.getSolutionConnections() == 8) break;
-                            solutionCheckConnection(island, island.getNeighbors()[1]);
+                            solutionCheckConnection(island, allNeighbors[1]);
                             //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[1].getX(), island.getNeighbors()[1].getY());
 
                             if (island.getSolutionConnections() == 8) break;
-                            solutionCheckConnection(island, island.getNeighbors()[2]);
+                            solutionCheckConnection(island, allNeighbors[2]);
                             //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[2].getX(), island.getNeighbors()[2].getY());
 
                             if (island.getSolutionConnections() == 8) break;
-                            solutionCheckConnection(island, island.getNeighbors()[3]);
+                            solutionCheckConnection(island, allNeighbors[3]);
                             //Debug.LogFormat("[Bridges #{0}] Connecting {1}, {2} and {3}, {4}", _moduleId, island.getX(), island.getY(), island.getNeighbors()[3].getX(), island.getNeighbors()[3].getY());
 
                             if (island.getSolutionConnections() == 8) break;
