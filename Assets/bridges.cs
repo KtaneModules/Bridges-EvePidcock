@@ -749,6 +749,7 @@ public class bridges : MonoBehaviour {
                         }
                         break;
                     case 8:
+                        Debug.LogFormat("[Bridges #{0}] Debug: Attempting to uniqueness-check an island with 8 connections.", _moduleId);
                         List<Island> allNeighbors = new List<Island>();
                         if (island.getNeighbors().Count != 0)
                         {
