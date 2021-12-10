@@ -17,6 +17,6 @@ MonoBehaviour:
   description: "Solve a Hashi puzzle!\r\n\r\nThe Camera Zoom mod is recommended.\r\n\r\nManual
     link (HTML): https://ktane.timwi.de/HTML/Bridges.html\r\nManual link (PDF): https://ktane.timwi.de/PDF/Bridges.pdf\r\n\r\nSource
     Code: https://github.com/AAces/Bridges\r\n\r\nModule ID: bridges\r\nMade by: AAces"
-  version: 1.1.3
+  version: 1.1.4
   outputFolder: build
   previewImage: {fileID: 2800000, guid: ded14c62945eab74eb98a71d74009fa4, type: 3}
