@@ -2548,63 +2548,31 @@ public class bridges : MonoBehaviour {
             return Buttons.ToArray();
         }
 
-        if (!command.StartsWith("PRESS")) return null;
+        if (!Regex.IsMatch(command, @"^PRESS ([A-G][1-9](?:\s*))+$")) return null;
         var buttons = new Dictionary<string, KMSelectable>();
+        var selectables = new List<KMSelectable[]> { selX0, selX1, selX2, selX3, selX4, selX5, selX6 };
         for (int i = 1; i < 10; i++) {
-            buttons.Add("A" + i, selX0[i-1]);
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            buttons.Add("B" + i, selX1[i - 1]);
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            buttons.Add("C" + i, selX2[i - 1]);
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            buttons.Add("D" + i, selX3[i - 1]);
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            buttons.Add("E" + i, selX4[i - 1]);
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            buttons.Add("F" + i, selX5[i - 1]);
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            buttons.Add("G" + i, selX6[i - 1]);
-        }
-
-        command = command.Substring(6);
-        string[] parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        
-        if (Regex.IsMatch(command, "([A-G][1-9])+"))
-        {
-            
-            foreach (string part in parts)
+            for (int j = 0; j < selectables.Count; j++)
             {
-                if (Regex.IsMatch(part, "^([A-G][1-9])$"))
-                {
-                    /*Debug.Log(part);
-                    Debug.Log("x=" + (part.ToCharArray()[0] - 65) + " y=" + (part.ToCharArray()[1] - '0' - 1));*/
-                    if (getIslandFromGrid(char.ToUpper(part.ToCharArray()[0]) - 65, part.ToCharArray()[1] - '0' - 1) == null)
-                    {
-                        return null;
-                    }
-                    Buttons.Add(buttons[part]);
-                } else
-                {
-                    return null;
-                }
+                char letter = ((char)('A' + j));
+                buttons.Add(letter.ToString() + i, selectables[j][i - 1]);
             }
-
-            return Buttons.ToArray();
+        }
+        MatchCollection parts = new Regex(@"[A-G][1-9]").Matches(command);
+            
+        foreach (Match m in parts)
+        {
+            var part = m.Value;
+            /*Debug.Log(part);
+            Debug.Log("x=" + (part.ToCharArray()[0] - 65) + " y=" + (part.ToCharArray()[1] - '0' - 1));*/
+            if (getIslandFromGrid(char.ToUpper(part.ToCharArray()[0]) - 65, part.ToCharArray()[1] - '0' - 1) == null)
+            {
+                return null;
+            }
+            Buttons.Add(buttons[part]);
         }
 
-        return null;
+        return Buttons.ToArray();
     }
 }
 
